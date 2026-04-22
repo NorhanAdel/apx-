@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  --font-sans: var(--font-cairo);
+}
+
+body {
+  font-family: cairo, sans-serif;
+  background: #14141c;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+html {
+  background-color: white;
+  color: black;
+}
+
+html.dark {
+  background-color: #020617;
+
+  color: white;
+}
+
+.ribbon {
+  clip-path: polygon(0 0, 85% 0, 100% 50%, 85% 100%, 0 100%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html {
+  background-color: white;
+}
+
+html.dark {
+  background-color: #020617;
+}
