@@ -23,13 +23,11 @@ export default function RootLayout({
 }) {
   const [lang, setLang] = useState("en");
 
-  
   useEffect(() => {
     const savedLang = localStorage.getItem("lang") || "en";
     setLang(savedLang);
   }, []);
 
-  // ✅ تغيير اللغة + حفظها
   const changeLang = (newLang: string) => {
     localStorage.setItem("lang", newLang);
     setLang(newLang);
@@ -38,19 +36,38 @@ export default function RootLayout({
   return (
     <html lang={lang} dir={lang === "ar" ? "rtl" : "ltr"}>
       <body className={`${cairo.variable} font-sans antialiased`}>
-        <GoogleOAuthProvider clientId="889740084185-xxxx.apps.googleusercontent.com">
+        <GoogleOAuthProvider
+          clientId={
+            process.env.GOOGLE_CLIENT_ID ||
+            "889740084185-4qk2gek7tdkk7qjreaffo1kd6cg2un53.apps.googleusercontent.com"
+          }
+        >
+          {" "}
           <AuthProvider>
             <ThemeProvider>
-    
-              <Toaster position="top-center" />
+              <Toaster
+                position="top-center"
+                richColors={false}
+                toastOptions={{
+                  style: {
+                    background: "rgba(9, 11, 110, 0.4)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid #021448",
+                    borderLeft: "2px solid #facc15",
+                    borderRight: "2px solid #facc15",
+                    color: "#ffffff",
+                    borderRadius: "12px",
+                    fontSize: "14px",
+                    fontFamily: "var(--font-cairo)",
+                  },
+                  className: "my-custom-toast",
+                }}
+              />
 
-             
               <Navbar lang={lang} setLang={changeLang} />
 
-            
               <main className="min-h-screen">{children}</main>
 
-           
               <Footer lang={lang} />
             </ThemeProvider>
           </AuthProvider>

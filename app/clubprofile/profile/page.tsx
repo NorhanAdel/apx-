@@ -1,4 +1,3 @@
-// app/clubprofile/profile/page.tsx
 "use client";
 
 import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";

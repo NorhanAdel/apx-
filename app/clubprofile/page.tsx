@@ -1,4 +1,3 @@
-// app/clubprofile/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -22,6 +21,8 @@ import {
   X,
   LogOut,
   Handshake,
+  Eye,
+  Heart,
 } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
@@ -122,49 +123,59 @@ export default function ClubProfile() {
     return `${process.env.NEXT_PUBLIC_API_URL}${url}`;
   };
 
-const menuButtons = [
-  {
-    label: t("Requests"),
-    icon: <Handshake size={18} />,
-    path: "/clubprofile/SentRequest",
-  },
-  {
-    label: t("Deals"),
-    icon: <FileText size={18} />,
-    path: "/clubprofile/deals",
-  },
-  {
-    label: t("Transfers"),
-    icon: <ArrowLeftRight size={18} />,
-    path: "/clubprofile/transfers",
-  },
-  {
-    label: t("Share AD"),
-    icon: <Megaphone size={18} />,
-    path: "/clubprofile/shareAd",
-  },
-  {
-    label: t("Events"),
-    icon: <Calendar size={18} />,
-    path: "/clubprofile/events",
-  },
-  {
-    label: t("My Players"),
-    icon: <UserCheck size={18} />,
-    path: "/clubprofile/my-players",
-  },
-  {
-    label: t("Participation Prime"),
-    icon: <Award size={18} />,
-    path: "/clubprofile/participationprime",
-  },
-  {
-    label: t("Logout"),
-    icon: <LogOut size={18} />,
-    color: "text-red-600",
-    action: () => setShowLogoutModal(true),
-  },
-];
+  const menuButtons = [
+    {
+      label: t("Requests"),
+      icon: <Handshake size={18} />,
+      path: "/clubprofile/sent-request",
+    },
+    {
+      label: t("Deals"),
+      icon: <FileText size={18} />,
+      path: "/clubprofile/deals",
+    },
+    {
+      label: t("Transfers"),
+      icon: <ArrowLeftRight size={18} />,
+      path: "/clubprofile/transfers",
+    },
+    {
+      label: t("Share AD"),
+      icon: <Megaphone size={18} />,
+      path: "/clubprofile/shareAd",
+    },
+    {
+      label: t("Events"),
+      icon: <Calendar size={18} />,
+      path: "/clubprofile/events",
+    },
+    {
+      label: t("My Players"),
+      icon: <UserCheck size={18} />,
+      path: "/clubprofile/my-players",
+    },
+    {
+      label: t("My Scouts"),
+      icon: <Eye size={18} />,
+      path: "/clubprofile/my-scouts",
+    },
+    {
+      label: t("Participation Prime"),
+      icon: <Award size={18} />,
+      path: "/clubprofile/participationprime",
+    },
+    {
+      label: t("Favorite Players"),
+      icon: <Heart size={18} className="text-red-500" />,
+      path: "/clubprofile/favouritePlayers",
+    },
+    {
+      label: t("Logout"),
+      icon: <LogOut size={18} />,
+      color: "text-red-600",
+      action: () => setShowLogoutModal(true),
+    },
+  ];
 
   const handleLogout = () => {
     localStorage.removeItem("token");

@@ -1,329 +1,216 @@
-// app/clubprofile/requests/page.tsx
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
-  ChevronDown,
-  Star,
-  LogOut,
-  X,
-  Send,
-  XCircle,
-  User,
+  Calendar,
   Building2,
-  Filter,
+  Send,
   Loader2,
+  Filter,
+  ChevronDown,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Plus,
+  ArrowRight,
+  User,
+  CheckCircle2,
 } from "lucide-react";
-import { useTheme } from "../../context/ThemeContext";
-import { fetchGraphQL } from "../../lib/fetchGraphQL";
-import useTranslate from "../../hooks/useTranslate";
 import { toast } from "sonner";
-import { GET_ALL_PLAYERS } from "@/app/graphql/query/player.queries";
-import { GET_MY_SENT_REQUESTS } from "@/app/graphql/query/request.queries";
-import {
-  SEND_REQUEST_MUTATION,
-  CANCEL_REQUEST_MUTATION,
-} from "@/app/graphql/mutation/request.mutations";
+import { useTheme } from "../../context/ThemeContext";
+import useTranslate from "../../hooks/useTranslate";
+import { fetchGraphQL } from "../../lib/fetchGraphQL";
+import { GET_ALL_TRANSFERS } from "../../graphql/query/transfer.queries";
+import { GET_DEALS_BY_STATUS } from "@/app/graphql/query/deal.queries";
+import { CREATE_TRANSFER_FROM_DEAL } from "../../graphql/mutation/transfer.mutations";
 
-interface Request {
+interface Transfer {
   id: string;
-  type: string;
+  player_id: string;
+  from_club: string;
+  to_club: string;
+  club_name: string | null;
   status: string;
-  player_id?: string;
-  senderName: string;
-  playerName: string;
-  payload?: string | { message?: string };
+  transfer_date: string;
+  completed_at: string | null;
   created_at: string;
-  updated_at: string;
+  playerName: string;
+  fromClubName: string;
+  toClubName: string;
+  notes: string | null;
 }
 
-interface Player {
+interface Deal {
   id: string;
-  first_name: string;
-  last_name: string;
-  profile_image_url: string;
-  average_rating: number;
+  player_id: string;
+  playerName: string;
+  offer_type: string;
+  club_name: string | null;
+  value: number | null;
+  status: string;
+  created_at: string;
 }
 
-interface GetAllPlayersResponse {
-  getAllPlayers: {
-    data: Player[];
-    total: number;
-  };
-}
-
-const CancelConfirmModal = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  isDark,
-  t,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  isDark: boolean;
-  t: (key: string) => string;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div
-        className={`w-full max-w-md rounded-2xl p-6 relative text-center shadow-2xl transform transition-all duration-300 scale-100
-          ${
-            isDark
-              ? "bg-[#0A1A44] border border-[#FFD700]/30"
-              : "bg-white border border-gray-200"
-          }`}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition"
-        >
-          <X size={20} />
-        </button>
-
-        <div className="flex flex-col items-center">
-          <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center mb-4
-            ${isDark ? "bg-red-500/20" : "bg-red-100"}`}
-          >
-            <XCircle size={32} className="text-red-500" />
-          </div>
-
-          <h2
-            className={`text-2xl font-bold italic mb-2 ${
-              isDark ? "text-white" : "text-gray-800"
-            }`}
-          >
-            {t("Cancel Request")}
-          </h2>
-
-          <p
-            className={`text-sm ${
-              isDark ? "text-gray-400" : "text-gray-600"
-            } mb-2`}
-          >
-            {t("Are you sure you want to cancel this request?")}
-          </p>
-
-          <p
-            className={`text-xs ${
-              isDark ? "text-gray-500" : "text-gray-400"
-            } mb-6`}
-          >
-            {t("This action cannot be undone.")}
-          </p>
-
-          <div className="flex gap-3 w-full">
-            <button
-              onClick={onClose}
-              className={`flex-1 py-2.5 rounded-lg font-semibold transition
-                ${
-                  isDark
-                    ? "bg-[#0A1A44] border border-gray-600 text-gray-300 hover:bg-[#0F2555]"
-                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
-                }`}
-            >
-              {t("No, Keep It")}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="flex-1 py-2.5 rounded-lg font-semibold bg-red-500 text-white hover:bg-red-600 transition"
-            >
-              {t("Yes, Cancel")}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default function ClubRequests() {
-  const router = useRouter();
+export default function ClubTransfersPage() {
   const { theme } = useTheme();
   const { t } = useTranslate();
   const isDark = theme === "dark";
 
-  const [activeTab, setActiveTab] = useState<"send" | "sent">("send");
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingRequests, setLoadingRequests] = useState(true);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [sentRequests, setSentRequests] = useState<Request[]>([]);
-  const [filteredRequests, setFilteredRequests] = useState<Request[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState("");
-  const [details, setDetails] = useState("");
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
-    null,
-  );
+  const [activeTab, setActiveTab] = useState<"create" | "my">("create");
+
+  // Create Transfer State
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [selectedDealId, setSelectedDealId] = useState<string>("");
+  const [creating, setCreating] = useState(false);
+
+  // My Transfers State
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [filteredTransfers, setFilteredTransfers] = useState<Transfer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  useEffect(() => {
-    fetchPlayers();
-    fetchSentRequests();
-  }, []);
-
-  // Filter requests when statusFilter changes
-  useEffect(() => {
-    if (statusFilter === "ALL") {
-      setFilteredRequests(sentRequests);
-    } else {
-      setFilteredRequests(
-        sentRequests.filter(
-          (request) => request.status?.toUpperCase() === statusFilter,
-        ),
-      );
-    }
-  }, [statusFilter, sentRequests]);
-
-  const fetchPlayers = async () => {
+  // Fetch Accepted Deals for Create Tab
+  const fetchAcceptedDeals = useCallback(async () => {
     try {
-      const result = await fetchGraphQL<GetAllPlayersResponse>(
-        GET_ALL_PLAYERS,
-        {
-          skip: 0,
-          take: 50,
-        },
+      const result = await fetchGraphQL<{ dealsByStatus: Deal[] }>(
+        GET_DEALS_BY_STATUS,
+        { status: "ACCEPTED", limit: 100 },
       );
-      if (result.data?.getAllPlayers?.data) {
-        setPlayers(result.data.getAllPlayers.data);
+      if (result.data?.dealsByStatus) {
+        setDeals(result.data.dealsByStatus);
       }
     } catch (error) {
-      console.error("Error fetching players:", error);
+      console.error("Error fetching deals:", error);
+      toast.error(t("Failed to load accepted deals"));
     }
-  };
+  }, [t]);
 
-  const fetchSentRequests = async () => {
-    setLoadingRequests(true);
-    try {
-      const result = await fetchGraphQL<{ mySentRequests: Request[] }>(
-        GET_MY_SENT_REQUESTS,
-        {},
-      );
-      if (result.data?.mySentRequests) {
-        setSentRequests(result.data.mySentRequests);
-        setFilteredRequests(result.data.mySentRequests);
-      }
-    } catch (error) {
-      console.error("Error fetching sent requests:", error);
-      toast.error(t("Failed to load requests"));
-    } finally {
-      setLoadingRequests(false);
-    }
-  };
-
-  const getPayloadMessage = (
-    payload: string | { message?: string } | undefined,
-  ): string => {
-    if (!payload) return t("No message");
-    if (typeof payload === "string") return payload;
-    if (typeof payload === "object" && payload.message) return payload.message;
-    return t("No message");
-  };
-
-  const handleSendRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedPlayerId) {
-      toast.error(t("Please select a player"));
-      return;
-    }
-    if (!details.trim()) {
-      toast.error(t("Please enter details"));
-      return;
-    }
-
+  // Fetch My Transfers
+  // Fetch My Transfers
+  const fetchTransfers = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchGraphQL<{ sendRequest: Request }>(
-        SEND_REQUEST_MUTATION,
-        {
-          input: {
-            player_id: selectedPlayerId,
-            type: "CLUB_OFFER",
-            message: details,
-          },
-        },
+      const result = await fetchGraphQL<{ allTransfers: Transfer[] }>(
+        GET_ALL_TRANSFERS,
+        {},
       );
-
-      if (result.errors) {
-        toast.error(result.errors[0].message);
-      } else if (result.data?.sendRequest) {
-        setSelectedPlayerId("");
-        setDetails("");
-        fetchSentRequests();
-        toast.success(t("Request sent successfully!"));
+      if (result.data?.allTransfers) {
+        setTransfers(result.data.allTransfers);
+        setFilteredTransfers(result.data.allTransfers);
+      } else {
+        console.log("No allTransfers in data:", result.data);
       }
     } catch (error) {
-      console.error("Error sending request:", error);
-      toast.error(t("Failed to send request"));
+      console.error("Error fetching transfers:", error);
+      toast.error(t("Failed to load transfers"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const handleCancelClick = (requestId: string) => {
-    setSelectedRequestId(requestId);
-    setCancelModalOpen(true);
-  };
+  useEffect(() => {
+    if (activeTab === "create") {
+      fetchAcceptedDeals();
+    } else {
+      fetchTransfers();
+    }
+  }, [activeTab, fetchAcceptedDeals, fetchTransfers]);
 
-  const confirmCancelRequest = async () => {
-    if (!selectedRequestId) return;
+  useEffect(() => {
+    if (statusFilter === "ALL") {
+      setFilteredTransfers(transfers);
+    } else {
+      setFilteredTransfers(
+        transfers.filter(
+          (transfer) => transfer.status.toUpperCase() === statusFilter,
+        ),
+      );
+    }
+  }, [statusFilter, transfers]);
 
-    setCancelModalOpen(false);
+  const handleCreateTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDealId) {
+      toast.error(t("Please select a deal"));
+      return;
+    }
+
+    setCreating(true);
     try {
-      const result = await fetchGraphQL<{ cancelRequest: Request }>(
-        CANCEL_REQUEST_MUTATION,
-        { requestId: selectedRequestId },
+      const result = await fetchGraphQL<{ createTransferFromDeal: Transfer }>(
+        CREATE_TRANSFER_FROM_DEAL,
+        { dealId: selectedDealId },
       );
 
       if (result.errors) {
         toast.error(result.errors[0].message);
-      } else if (result.data?.cancelRequest) {
-        toast.success(t("Request cancelled successfully"));
-        fetchSentRequests();
+      } else if (result.data?.createTransferFromDeal) {
+        toast.success(t("Transfer created successfully!"));
+        setSelectedDealId("");
+        setActiveTab("my");
+        fetchTransfers();
       }
     } catch (error) {
-      console.error("Error cancelling request:", error);
-      toast.error(t("Failed to cancel request"));
+      console.error("Error creating transfer:", error);
+      toast.error(t("Failed to create transfer"));
     } finally {
-      setSelectedRequestId(null);
+      setCreating(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateString;
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "PENDING":
-        return "text-yellow-500 bg-yellow-500/10";
-      case "ACCEPTED":
-        return "text-green-500 bg-green-500/10";
-      case "REJECTED":
-        return "text-red-500 bg-red-500/10";
-      case "CANCELLED":
-        return "text-gray-500 bg-gray-500/10";
-      default:
-        return "text-gray-500 bg-gray-500/10";
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes("completed")) {
+      return "text-green-500 bg-green-500/10";
     }
+    if (lowerStatus.includes("pending")) {
+      return "text-yellow-500 bg-yellow-500/10";
+    }
+    if (lowerStatus.includes("cancelled")) {
+      return "text-red-500 bg-red-500/10";
+    }
+    return "text-gray-400 bg-gray-500/10";
+  };
+
+  const getStatusIcon = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes("completed"))
+      return <CheckCircle size={14} className="text-green-500" />;
+    if (lowerStatus.includes("pending"))
+      return <Clock size={14} className="text-yellow-500" />;
+    if (lowerStatus.includes("cancelled"))
+      return <XCircle size={14} className="text-red-500" />;
+    return null;
+  };
+
+  const getStatusCount = (status: string) => {
+    if (status === "ALL") return transfers.length;
+    return transfers.filter(
+      (transfer) => transfer.status.toUpperCase() === status,
+    ).length;
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "ALL":
         return t("All Statuses");
+      case "COMPLETED":
+        return t("Completed");
       case "PENDING":
         return t("Pending");
-      case "ACCEPTED":
-        return t("Accepted");
-      case "REJECTED":
-        return t("Rejected");
       case "CANCELLED":
         return t("Cancelled");
       default:
@@ -331,276 +218,172 @@ export default function ClubRequests() {
     }
   };
 
-  const getStatusCount = (status: string) => {
-    if (status === "ALL") return sentRequests.length;
-    return sentRequests.filter(
-      (request) => request.status?.toUpperCase() === status,
-    ).length;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const getFullImageUrl = (url: string) => {
-    if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return `${process.env.NEXT_PUBLIC_API_URL}${url}`;
-  };
-
-  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    router.push("/login");
-  };
+  const selectedDeal = deals.find((d) => d.id === selectedDealId);
 
   return (
     <div
-      className={`min-h-screen p-6 md:p-12 flex justify-center font-sans relative transition
-      ${isDark ? "bg-[#020617] text-white" : "bg-gray-100 text-black"}`}
+      className={`min-h-screen py-20 px-6 transition ${
+        isDark ? "bg-[#020617] text-white" : "bg-gray-100 text-black"
+      }`}
     >
-      <CancelConfirmModal
-        isOpen={cancelModalOpen}
-        onClose={() => {
-          setCancelModalOpen(false);
-          setSelectedRequestId(null);
-        }}
-        onConfirm={confirmCancelRequest}
-        isDark={isDark}
-        t={t}
-      />
-
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div
-            className={`w-full max-w-md rounded-xl p-10 relative text-center
-            ${isDark ? "bg-[#050B18]" : "bg-white"}`}
-          >
-            <button
-              onClick={() => setShowLogoutModal(false)}
-              className="absolute top-4 right-4 text-gray-500"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <h2 className="text-3xl font-black italic uppercase">
-                {t("Logout")}
-              </h2>
-              <LogOut size={28} />
-            </div>
-
-            <p
-              className={`${isDark ? "text-gray-400" : "text-gray-600"} mb-10`}
-            >
-              {t("Are You Sure You Want To Log out?")}
-            </p>
-
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className={`flex-1 py-3 rounded-md
-                  ${
-                    isDark
-                      ? "bg-[#0A1A44] text-white"
-                      : "bg-gray-200 text-black"
-                  }`}
-              >
-                {t("Cancel")}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 py-3 bg-red-600 text-white rounded-md"
-              >
-                {t("Logout")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-6xl w-full space-y-8 py-20">
-        <h1
-          className={`text-center text-4xl font-black italic uppercase mb-10
-          ${isDark ? "text-[#FFD700]" : "text-yellow-600"}`}
-        >
-          {t("Requests")}
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black italic tracking-tighter text-yellow-400 uppercase text-center mb-10">
+          {t("Transfers")}
         </h1>
 
+        {/* Tabs */}
         <div className="flex justify-center gap-4 mb-8">
           <button
-            onClick={() => setActiveTab("send")}
-            className={`px-6 py-2 rounded-md font-semibold transition ${
-              activeTab === "send"
+            onClick={() => {
+              setActiveTab("create");
+              setSelectedDealId("");
+            }}
+            className={`px-6 py-2 rounded-md font-semibold transition flex items-center gap-2 ${
+              activeTab === "create"
                 ? isDark
                   ? "bg-yellow-400 text-black"
-                  : "bg-yellow-500 text-white"
+                  : "bg-[#F0B100] text-black"
                 : isDark
                 ? "bg-[#0A1A44] text-gray-400 hover:text-white"
                 : "bg-gray-200 text-gray-600 hover:text-black"
             }`}
           >
-            {t("Send Request")}
+            <Plus size={18} />
+            {t("Create Transfer")}
           </button>
           <button
-            onClick={() => setActiveTab("sent")}
-            className={`px-6 py-2 rounded-md font-semibold transition ${
-              activeTab === "sent"
+            onClick={() => setActiveTab("my")}
+            className={`px-6 py-2 rounded-md font-semibold transition flex items-center gap-2 ${
+              activeTab === "my"
                 ? isDark
                   ? "bg-yellow-400 text-black"
-                  : "bg-yellow-500 text-white"
+                  : "bg-[#F0B100] text-black"
                 : isDark
                 ? "bg-[#0A1A44] text-gray-400 hover:text-white"
                 : "bg-gray-200 text-gray-600 hover:text-black"
             }`}
           >
-            {t("My Sent Requests")}
+            <Building2 size={18} />
+            {t("My Transfers")}
           </button>
         </div>
 
-        {activeTab === "send" ? (
-          <form onSubmit={handleSendRequest} className="space-y-8">
-            <div className="space-y-3">
-              <label
-                className={`${
-                  isDark ? "text-gray-400" : "text-gray-600"
-                } text-sm uppercase`}
-              >
-                {t("Player")}
-              </label>
+        {activeTab === "create" ? (
+          // Create Transfer Tab
+          <div
+            className={`rounded-xl p-6 ${
+              isDark
+                ? "bg-[#0a0f2c] border border-[#1e2a5a]"
+                : "bg-white shadow"
+            }`}
+          >
+            <h2
+              className={`text-2xl font-bold mb-4 ${
+                isDark ? "text-white" : "text-black"
+              }`}
+            >
+              {t("Create Transfer from Accepted Deal")}
+            </h2>
 
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#FFD700]">
-                  <Star size={18} fill="currentColor" />
-                </div>
-
-                <select
-                  value={selectedPlayerId}
-                  onChange={(e) => setSelectedPlayerId(e.target.value)}
-                  className={`w-full rounded-xl py-4 pl-12 pr-10 text-sm outline-none italic appearance-none cursor-pointer
-                    ${
-                      isDark
-                        ? "bg-[#0A1A44]/40 border border-blue-900/50 text-white"
-                        : "bg-white border border-gray-300 text-black"
-                    }`}
+            <form onSubmit={handleCreateTransfer} className="space-y-4">
+              <div>
+                <label
+                  className={`block text-sm mb-1 ${
+                    isDark ? "text-gray-300" : "text-gray-700"
+                  }`}
                 >
-                  <option value="">{t("Select Player")}</option>
-                  {players.map((player) => (
-                    <option key={player.id} value={player.id}>
-                      {player.first_name} {player.last_name}
+                  {t("Select Accepted Deal")}{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedDealId}
+                  onChange={(e) => setSelectedDealId(e.target.value)}
+                  className={`w-full rounded-lg px-4 py-2 outline-none border ${
+                    isDark
+                      ? "bg-[#0b1736] border-[#1e2a5a] text-white focus:border-yellow-400"
+                      : "bg-white border-gray-300 text-black focus:border-yellow-400"
+                  }`}
+                  required
+                >
+                  <option value="">{t("Select a deal")}</option>
+                  {deals.map((deal) => (
+                    <option key={deal.id} value={deal.id}>
+                      {deal.playerName} - {deal.offer_type} -{" "}
+                      {deal.club_name || t("No club")}
                     </option>
                   ))}
                 </select>
-
-                <ChevronDown
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#FFD700] pointer-events-none"
-                  size={18}
-                />
               </div>
 
-              {selectedPlayer && (
+              {selectedDeal && (
                 <div
-                  className={`p-3 rounded-lg flex items-center justify-between transition mt-4
-                    ${
-                      isDark
-                        ? "bg-[#051139]/50 border border-blue-900/30"
-                        : "bg-white shadow"
-                    }`}
+                  className={`p-4 rounded-lg ${
+                    isDark
+                      ? "bg-[#051139]/50 border border-blue-900/30"
+                      : "bg-gray-50 border"
+                  }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 relative rounded-md overflow-hidden">
-                      {selectedPlayer.profile_image_url ? (
-                        <Image
-                          src={getFullImageUrl(
-                            selectedPlayer.profile_image_url,
-                          )}
-                          alt={selectedPlayer.first_name}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-500 flex items-center justify-center">
-                          <User size={20} className="text-white" />
-                        </div>
-                      )}
+                  <h3 className="font-semibold mb-2">{t("Deal Details")}</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User size={16} className="text-yellow-500" />
+                      <span>{selectedDeal.playerName}</span>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold">
-                        {selectedPlayer.first_name} {selectedPlayer.last_name}
-                      </h4>
-                      <p
-                        className={`${
-                          isDark ? "text-gray-500" : "text-gray-400"
-                        } text-xs`}
-                      >
-                        {t("Player")}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <Building2 size={16} className="text-yellow-500" />
+                      <span>
+                        {selectedDeal.club_name || t("No club specified")}
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex text-[#FFD700]">
-                      {[...Array(7)].map((_, i) => (
-                        <Star
-                          key={i}
-                          size={10}
-                          fill={
-                            i < Math.floor(selectedPlayer.average_rating || 0)
-                              ? "currentColor"
-                              : "none"
-                          }
-                          className={
-                            i < Math.floor(selectedPlayer.average_rating || 0)
-                              ? "text-yellow-400"
-                              : "text-gray-500"
-                          }
-                        />
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <ArrowRight size={16} className="text-green-500" />
+                      <span>{selectedDeal.offer_type}</span>
                     </div>
-                    <span className="text-[10px] text-gray-500">
-                      {selectedPlayer.average_rating?.toFixed(1) || "0"}
-                    </span>
                   </div>
                 </div>
               )}
-            </div>
 
-            <textarea
-              rows={6}
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder={t("Details of Request")}
-              className={`w-full rounded-xl p-4 outline-none resize-none
-                ${
-                  isDark
-                    ? "bg-[#0A1A44]/40 border border-blue-900/50 text-white"
-                    : "bg-white border border-gray-300 text-black"
-                }`}
-            />
-
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 transition
-                ${
-                  isDark
-                    ? "bg-[#0A1A44] border border-[#FFD700]/40 text-white hover:bg-[#FFD700] hover:text-black"
-                    : "bg-yellow-400 text-black hover:bg-yellow-500"
-                }
-                ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <span className="font-bold uppercase">
-                {loading ? t("Sending...") : t("Send Request")}
-              </span>
-              <Send size={20} />
-            </button>
-          </form>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDealId("");
+                  }}
+                  className={`flex-1 py-2 rounded-md transition ${
+                    isDark
+                      ? "bg-[#1e2a5a] text-white hover:bg-[#2a3a7a]"
+                      : "bg-gray-200 text-black hover:bg-gray-300"
+                  }`}
+                >
+                  {t("Clear")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !selectedDealId}
+                  className={`flex-1 py-2 rounded-md transition flex items-center justify-center gap-2 ${
+                    isDark
+                      ? "bg-yellow-400 text-black hover:bg-yellow-500"
+                      : "bg-[#F0B100] text-black hover:bg-yellow-500"
+                  } ${
+                    creating || !selectedDealId
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
+                >
+                  {creating ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      {t("Create Transfer")}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         ) : (
+          // My Transfers Tab
           <div className="space-y-4">
             {/* Status Filter Dropdown */}
             <div className="flex justify-end">
@@ -638,61 +421,55 @@ export default function ClubRequests() {
                           : "bg-white border border-gray-200"
                       }`}
                     >
-                      {[
-                        "ALL",
-                        "PENDING",
-                        "ACCEPTED",
-                        "REJECTED",
-                        "CANCELLED",
-                      ].map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => {
-                            setStatusFilter(status);
-                            setIsFilterOpen(false);
-                          }}
-                          className={`w-full px-4 py-2 text-left text-sm transition flex items-center justify-between ${
-                            statusFilter === status
-                              ? isDark
-                                ? "bg-yellow-400/20 text-yellow-400"
-                                : "bg-yellow-50 text-yellow-600"
-                              : isDark
-                              ? "hover:bg-[#1e2a5a] text-gray-300"
-                              : "hover:bg-gray-50 text-gray-700"
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span
-                              className={`w-2 h-2 rounded-full ${
-                                status === "PENDING"
-                                  ? "bg-yellow-500"
-                                  : status === "ACCEPTED"
-                                  ? "bg-green-500"
-                                  : status === "REJECTED"
-                                  ? "bg-red-500"
-                                  : status === "CANCELLED"
-                                  ? "bg-gray-500"
-                                  : "bg-gray-400"
-                              }`}
-                            ></span>
-                            {getStatusLabel(status)}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-500/20">
-                            {getStatusCount(status)}
-                          </span>
-                        </button>
-                      ))}
+                      {["ALL", "COMPLETED", "PENDING", "CANCELLED"].map(
+                        (status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              setStatusFilter(status);
+                              setIsFilterOpen(false);
+                            }}
+                            className={`w-full px-4 py-2 text-left text-sm transition flex items-center justify-between ${
+                              statusFilter === status
+                                ? isDark
+                                  ? "bg-yellow-400/20 text-yellow-400"
+                                  : "bg-yellow-50 text-yellow-600"
+                                : isDark
+                                ? "hover:bg-[#1e2a5a] text-gray-300"
+                                : "hover:bg-gray-50 text-gray-700"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  status === "COMPLETED"
+                                    ? "bg-green-500"
+                                    : status === "PENDING"
+                                    ? "bg-yellow-500"
+                                    : status === "CANCELLED"
+                                    ? "bg-red-500"
+                                    : "bg-gray-400"
+                                }`}
+                              ></span>
+                              {getStatusLabel(status)}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-500/20">
+                              {getStatusCount(status)}
+                            </span>
+                          </button>
+                        ),
+                      )}
                     </div>
                   </>
                 )}
               </div>
             </div>
 
-            {loadingRequests ? (
+            {loading ? (
               <div className="flex justify-center py-20">
                 <Loader2 size={40} className="animate-spin text-yellow-500" />
               </div>
-            ) : filteredRequests.length === 0 ? (
+            ) : filteredTransfers.length === 0 ? (
               <div
                 className={`text-center py-20 rounded-xl ${
                   isDark ? "bg-[#0a1128]" : "bg-white shadow"
@@ -701,11 +478,11 @@ export default function ClubRequests() {
                 <Send size={48} className="mx-auto mb-4 text-gray-500" />
                 <p className={isDark ? "text-gray-400" : "text-gray-500"}>
                   {statusFilter === "ALL"
-                    ? t("No sent requests")
+                    ? t("No transfers found")
                     : t(
                         `No ${getStatusLabel(
                           statusFilter,
-                        ).toLowerCase()} requests found`,
+                        ).toLowerCase()} transfers found`,
                       )}
                 </p>
                 {statusFilter !== "ALL" && (
@@ -717,59 +494,67 @@ export default function ClubRequests() {
                         : "bg-[#F0B100] text-black hover:bg-yellow-500"
                     }`}
                   >
-                    {t("View all requests")}
+                    {t("View all transfers")}
                   </button>
                 )}
               </div>
             ) : (
-              filteredRequests.map((request) => (
+              filteredTransfers.map((transfer) => (
                 <div
-                  key={request.id}
-                  className={`p-5 rounded-xl transition ${
+                  key={transfer.id}
+                  className={`p-4 rounded-xl transition ${
                     isDark
-                      ? "bg-[#0A1A44]/40 border border-blue-900/30"
-                      : "bg-white shadow"
+                      ? "bg-[#0a1128] border border-[#0f2b63]"
+                      : "bg-white border border-gray-200 shadow"
                   }`}
                 >
-                  <div className="flex justify-between items-start gap-4">
+                  <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <Building2 size={16} className="text-green-400" />
+                        <h3 className="font-bold text-lg">
+                          {transfer.playerName}
+                        </h3>
                         <span
                           className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                            request.status,
+                            transfer.status,
                           )}`}
                         >
-                          {request.status}
+                          <span className="flex items-center gap-1">
+                            {getStatusIcon(transfer.status)}
+                            {transfer.status}
+                          </span>
                         </span>
                       </div>
-                      <h3 className="font-bold text-lg">
-                        {request.playerName}
-                      </h3>
-                      <p
-                        className={`text-sm ${
-                          isDark ? "text-gray-400" : "text-gray-600"
-                        } mt-2`}
-                      >
-                        {getPayloadMessage(request.payload)}
-                      </p>
-                      <p
-                        className={`text-xs ${
-                          isDark ? "text-gray-500" : "text-gray-400"
-                        } mt-2`}
-                      >
-                        {formatDate(request.created_at)}
-                      </p>
+                      <div className="flex flex-wrap gap-3 text-sm">
+                        <span className="flex items-center gap-1 text-blue-500">
+                          <Building2 size={14} /> {transfer.from_club}
+                        </span>
+                        <span className="text-gray-400">→</span>
+                        <span className="flex items-center gap-1 text-green-500">
+                          <Building2 size={14} /> {transfer.to_club}
+                        </span>
+                        {transfer.club_name && (
+                          <span className="flex items-center gap-1 text-yellow-500">
+                            <Building2 size={14} /> {transfer.club_name}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Calendar size={14} />{" "}
+                          {formatDate(transfer.created_at)}
+                        </span>
+                      </div>
+                      {transfer.notes && (
+                        <p
+                          className={`text-sm mt-2 ${
+                            isDark ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          {transfer.notes.length > 150
+                            ? `${transfer.notes.substring(0, 150)}...`
+                            : transfer.notes}
+                        </p>
+                      )}
                     </div>
-
-                    {request.status?.toUpperCase() === "PENDING" && (
-                      <button
-                        onClick={() => handleCancelClick(request.id)}
-                        className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition whitespace-nowrap"
-                      >
-                        {t("Cancel")}
-                      </button>
-                    )}
                   </div>
                 </div>
               ))

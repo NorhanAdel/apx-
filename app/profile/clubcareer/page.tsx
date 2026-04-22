@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { fetchGraphQL } from "../../lib/fetchGraphQL";
 import useTranslate from "../../hooks/useTranslate";
 import { UPDATE_PLAYER_CLUB_CAREER } from "@/app/graphql/mutation/player.mutations";
-import { GET_MY_CLUB_CAREER } from "@/app/graphql/query/player.query";
+import { GET_MY_CLUB_CAREER } from "@/app/graphql/query/player.queries";
 
 interface ClubCareerFormData {
   current_club: string;
@@ -33,7 +33,7 @@ interface ClubCareerFormData {
 export default function ClubCareer() {
   const { theme } = useTheme();
   const router = useRouter();
-  const { t } = useTranslate();
+  const { t, lang } = useTranslate();
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -69,11 +69,11 @@ export default function ClubCareer() {
     } finally {
       setFetching(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     fetchCareerData();
-  }, [fetchCareerData]);
+  }, [lang, fetchCareerData]);
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

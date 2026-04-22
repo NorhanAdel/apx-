@@ -1,8 +1,12 @@
+// app/components/ReelsPlayer.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
 import { Heart } from "lucide-react";
+import { toast } from "sonner";
 import useTranslate from "../hooks/useTranslate";
+import { fetchGraphQL } from "../lib/fetchGraphQL";
+import { SEND_REQUEST_MUTATION } from "@/app/graphql/mutation/request.mutations";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -14,13 +18,15 @@ interface Video {
 
 interface Props {
   videos?: Video[];
+  playerId?: string;
 }
 
-export default function ReelsPlayer({ videos = [] }: Props) {
+export default function ReelsPlayer({ videos = [], playerId }: Props) {
   const { t } = useTranslate();
   const [selected, setSelected] = useState<string>("");
   const [likes, setLikes] = useState(6);
   const [liked, setLiked] = useState(false);
+  const [sending, setSending] = useState(false);
   const hasSetInitial = useRef(false);
 
   const getFullUrl = (url?: string) => {
@@ -45,6 +51,45 @@ export default function ReelsPlayer({ videos = [] }: Props) {
   const handleLike = () => {
     setLiked((prev) => !prev);
     setLikes((prev) => (!liked ? prev + 1 : prev - 1));
+  };
+
+  const handleSendRequest = async () => {
+    if (!playerId) {
+      toast.error(t("Player ID not found"));
+      return;
+    }
+
+    setSending(true);
+
+    try {
+      const result = await fetchGraphQL<{
+        sendRequest: {
+          id: string;
+          type: string;
+          status: string;
+          player_id: string;
+          sender_id: string;
+          created_at: string;
+        };
+      }>(SEND_REQUEST_MUTATION, {
+        input: {
+          player_id: playerId,
+          type: "CLUB_OFFER",
+          message: "We have an offer for you",
+        },
+      });
+
+      if (result.errors) {
+        toast.error(result.errors[0].message);
+      } else if (result.data?.sendRequest) {
+        toast.success(t("Request sent successfully!"));
+      }
+    } catch (error) {
+      console.error("Error sending request:", error);
+      toast.error(t("Failed to send request. Please try again."));
+    } finally {
+      setSending(false);
+    }
   };
 
   if (!videos.length) return null;
@@ -96,8 +141,12 @@ export default function ReelsPlayer({ videos = [] }: Props) {
         })}
       </div>
 
-      <button className="w-full mt-6 py-3 bg-[#0a1a3a] hover:bg-[#11265e] rounded-lg font-semibold">
-        {t("Send Request")}
+      <button
+        onClick={handleSendRequest}
+        disabled={sending}
+        className="w-full mt-6 py-3 bg-[#0a1a3a] hover:bg-[#11265e] rounded-lg font-semibold disabled:opacity-50 transition"
+      >
+        {sending ? t("Sending...") : t("Send Request")}
       </button>
     </div>
   );

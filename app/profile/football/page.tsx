@@ -47,7 +47,6 @@ interface FootballInfoData {
   playing_style: string;
   strengths: string;
   market_value: number;
-  description: string;
 }
 
 interface FormData {
@@ -58,7 +57,6 @@ interface FormData {
   playing_style: string;
   strengths: string;
   market_value: string;
-  description: string;
 }
 
 export default function FootballInformation() {
@@ -84,7 +82,6 @@ export default function FootballInformation() {
     playing_style: "",
     strengths: "",
     market_value: "",
-    description: "",
   });
 
   const fetchPositions = useCallback(async () => {
@@ -119,7 +116,6 @@ export default function FootballInformation() {
           playing_style: info.playing_style || "",
           strengths: info.strengths || "",
           market_value: info.market_value?.toString() || "",
-          description: info.description || "",
         };
         setFormData(loaded);
         setOriginalFormData(loaded);
@@ -153,8 +149,7 @@ export default function FootballInformation() {
       formData.jersey_number === originalFormData.jersey_number &&
       formData.playing_style === originalFormData.playing_style &&
       formData.strengths === originalFormData.strengths &&
-      formData.market_value === originalFormData.market_value &&
-      formData.description === originalFormData.description
+      formData.market_value === originalFormData.market_value
     );
   }, [formData, originalFormData]);
 
@@ -191,7 +186,6 @@ export default function FootballInformation() {
       playing_style: formData.playing_style,
       strengths: formData.strengths,
       market_value: parseFloat(formData.market_value) || 0,
-      description: formData.description,
     };
 
     let variables;
@@ -314,26 +308,6 @@ export default function FootballInformation() {
             icon={<User size={18} />}
             isDark={isDark}
           />
-
-          <div className="md:col-span-2">
-            <label
-              className={`block mb-2 ${
-                isDark ? "text-gray-300" : "text-gray-700"
-              }`}
-            >
-              {t("Description")}
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              className={`w-full h-32 rounded-xl p-3 border ${
-                isDark
-                  ? "bg-[#0b1736] border-gray-700 text-white"
-                  : "bg-white border-gray-300 text-black"
-              }`}
-            />
-          </div>
 
           <div className="md:col-span-2 flex justify-between mt-10">
             <button

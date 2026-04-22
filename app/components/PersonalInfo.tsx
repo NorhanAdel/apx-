@@ -1,12 +1,13 @@
-// app/components/PersonalInfo.tsx
 "use client";
 
 import React from "react";
+import { useTheme } from "@/app/context/ThemeContext";
 
 interface Player {
   first_name: string;
   last_name: string;
   date_of_birth?: string | Date | null;
+  age?: number | null;
   city?: string | null;
   country?: string | null;
   nationality?: string | null;
@@ -14,42 +15,40 @@ interface Player {
   weight_kg?: number | null;
   email_address?: string | null;
   phone?: string | null;
-}
-
-interface Position {
-  id: string;
-  name: string;
-  category: string;
-}
-
-interface FootballInfo {
-  preferred_foot?: string | null;
-  jersey_number?: number | null;
-  position?: Position | null;
-  playing_style?: string | null;
-  strengths?: string[] | null;
-  market_value?: number | null;
-  description?: string | null;
-}
-
-interface ClubCareer {
-  current_club?: string | null;
-  professional_debut?: string | Date | null;
-  previous_clubs?: string | null;
+  bio?: string | null;
+  trust_level?: string | null;
+  views_count?: number | null;
 }
 
 interface PersonalInfoProps {
   player: Player | null | undefined;
-  footballInfo?: FootballInfo | null | undefined;
-  clubCareer?: ClubCareer | null | undefined;
+  showContact?: boolean;
 }
 
 export default function PersonalInfo({
   player,
-  footballInfo,
-  clubCareer,
+  showContact = false,
 }: PersonalInfoProps) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   if (!player) return null;
+
+  // Helper function to calculate age from date of birth
+  const calculateAge = (birthDate?: string | Date | null): number | null => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  };
 
   const formatDate = (dateString?: string | Date | null) => {
     if (!dateString) return "N/A";
@@ -60,128 +59,92 @@ export default function PersonalInfo({
     }
   };
 
-  const formatMarketValue = (value?: number | null) => {
-    if (!value) return "N/A";
-    if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M €`;
-    }
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(0)}K €`;
-    }
-    return `${value} €`;
-  };
+  const textColor = isDark ? "text-gray-300" : "text-gray-700";
 
-  const formatStrengths = (strengths?: string[] | null) => {
-    if (!strengths || strengths.length === 0) return "N/A";
-    return strengths.join(", ");
-  };
+  const hasStats =
+    (player.views_count ?? 0) > 0 ||
+    player.trust_level ||
+    (player.country && player.city);
+  const hasBio = !!player.bio;
 
-  const getPositionName = () => {
-    if (!footballInfo?.position) return "N/A";
-    return footballInfo.position.name;
-  };
+  // Use age from API if available, otherwise calculate from date_of_birth
+  const displayAge = player.age ?? calculateAge(player.date_of_birth);
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Bio & Stats Section */}
+      {(hasBio || hasStats) && (
+        <div>
+          {hasBio && (
+            <h3 className="text-yellow-400 font-semibold mb-3">Bio</h3>
+          )}
+          {hasBio && (
+            <p
+              className={`text-sm ${
+                isDark ? "text-gray-300" : "text-gray-600"
+              } leading-relaxed`}
+            >
+              {player.bio}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-400">
+            {(player.views_count ?? 0) > 0 && (
+              <span>👁️ {player.views_count} views</span>
+            )}
+            {player.trust_level && <span>🏆 {player.trust_level} level</span>}
+            {player.country && player.city && (
+              <span>
+                📍 {player.city}, {player.country}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Personal Information */}
       <div>
         <h3 className="text-yellow-400 font-semibold mb-3">
           Personal Information
         </h3>
-        <ul className="space-y-2 text-gray-300 text-sm">
-          <li>
+        <ul className="space-y-2 text-sm">
+          <li className={textColor}>
             <strong>Full Name:</strong> {player.first_name} {player.last_name}
           </li>
-          <li>
+          <li className={textColor}>
             <strong>Date of Birth:</strong> {formatDate(player.date_of_birth)}
           </li>
-          <li>
+          <li className={textColor}>
+            <strong>Age:</strong> {displayAge ?? "N/A"}
+          </li>
+          <li className={textColor}>
             <strong>Place of Birth:</strong> {player.city || "Unknown"},{" "}
             {player.country || "Unknown"}
           </li>
-          <li>
+          <li className={textColor}>
             <strong>Nationality:</strong> {player.nationality || "N/A"}
           </li>
-          <li>
+          <li className={textColor}>
             <strong>Height:</strong>{" "}
             {player.height_cm
               ? `${(player.height_cm / 100).toFixed(2)} m`
               : "N/A"}
           </li>
-          <li>
+          <li className={textColor}>
             <strong>Weight:</strong>{" "}
             {player.weight_kg ? `${player.weight_kg} kg` : "N/A"}
           </li>
-          <li>
-            <strong>Email:</strong> {player.email_address || "N/A"}
-          </li>
-          <li>
-            <strong>Phone:</strong> {player.phone || "N/A"}
-          </li>
+          {showContact && (
+            <li className={textColor}>
+              <strong>Email:</strong> {player.email_address || "N/A"}
+            </li>
+          )}
+          {showContact && (
+            <li className={textColor}>
+              <strong>Phone:</strong> {player.phone || "N/A"}
+            </li>
+          )}
         </ul>
       </div>
-
-      {/* Football Information */}
-      {footballInfo && (
-        <div>
-          <h3 className="text-yellow-400 font-semibold mb-3">
-            Football Information
-          </h3>
-          <ul className="space-y-2 text-gray-300 text-sm">
-            <li>
-              <strong>Position:</strong> {getPositionName()}
-            </li>
-            <li>
-              <strong>Preferred Foot:</strong>{" "}
-              {footballInfo.preferred_foot || "N/A"}
-            </li>
-            <li>
-              <strong>Jersey Number:</strong>{" "}
-              {footballInfo.jersey_number || "N/A"}
-            </li>
-            <li>
-              <strong>Playing Style:</strong>{" "}
-              {footballInfo.playing_style || "N/A"}
-            </li>
-            <li>
-              <strong>Strengths:</strong>{" "}
-              {formatStrengths(footballInfo.strengths)}
-            </li>
-            <li>
-              <strong>Market Value:</strong>{" "}
-              {formatMarketValue(footballInfo.market_value)}
-            </li>
-            <li>
-              <strong>Description:</strong>
-              <p className="mt-1 text-gray-400 leading-relaxed">
-                {footballInfo.description || "No description available"}
-              </p>
-            </li>
-          </ul>
-        </div>
-      )}
-
-      {/* Club Career */}
-      {clubCareer && (
-        <div>
-          <h3 className="text-yellow-400 font-semibold mb-3">Club Career</h3>
-          <ul className="space-y-2 text-gray-300 text-sm">
-            <li>
-              <strong>Current Club:</strong> {clubCareer.current_club || "N/A"}
-            </li>
-            <li>
-              <strong>Professional Debut:</strong>{" "}
-              {formatDate(clubCareer.professional_debut)}
-            </li>
-            <li>
-              <strong>Previous Clubs:</strong>
-              <p className="mt-1 text-gray-400">
-                {clubCareer.previous_clubs || "No previous clubs"}
-              </p>
-            </li>
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

@@ -15,17 +15,65 @@ import {
 import { fetchGraphQL } from "@/app/lib/fetchGraphQL";
 import useTranslate from "@/app/hooks/useTranslate";
 
-type UserRole = "PLAYER" | "CLUB" | "ADMIN" | "SCOUT" | "AGENT";
+type UserRole = "PLAYER" | "CLUB" | "SCOUT" | "AGENT" | "USER";
 
 interface User {
   id: string;
   email: string;
   role: UserRole;
-  playerProfile?: { id: string; full_name: string };
-  clubProfile?: { id: string; club_name: string };
-  scoutProfile?: { id: string; full_name: string };
-  agentProfile?: { id: string; full_name: string };
+  name?: string;
+  avatar?: string;
+  is_verified?: boolean;
+  is_email_verified?: boolean;
+  is_active?: boolean;
 }
+
+const GET_PLAYER_PROFILE_EXISTS = `
+  query GetPlayerProfileExists {
+    myPlayerProfile {
+      id
+    }
+  }
+`;
+
+const GET_CLUB_PROFILE_EXISTS = `
+  query GetClubProfileExists {
+    myClubProfile {
+      id
+      club_name
+    }
+  }
+`;
+
+const GET_SCOUT_PROFILE_EXISTS = `
+  query GetScoutProfileExists {
+    myScoutProfile {
+      id
+      first_name
+      last_name
+    }
+  }
+`;
+
+const GET_AGENT_PROFILE_EXISTS = `
+  query GetAgentProfileExists {
+    myAgentProfile {
+      id
+      first_name
+      last_name
+    }
+  }
+`;
+
+const GET_USER_PROFILE_EXISTS = `
+  query GetUserProfileExists {
+    myUserProfile {
+      id
+      first_name
+      last_name
+    }
+  }
+`;
 
 type OtpFormData = z.infer<
   z.ZodObject<{
@@ -40,6 +88,7 @@ export default function VerifyOtpPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -60,10 +109,16 @@ export default function VerifyOtpPage() {
 
   useEffect(() => {
     const storedEmail = localStorage.getItem("pending_email");
+    const storedRememberMe = localStorage.getItem("remember_me");
+
     if (storedEmail) {
       setEmail(storedEmail);
     } else {
       router.push("/auth/login");
+    }
+
+    if (storedRememberMe === "true") {
+      setRememberMe(true);
     }
 
     if (timer > 0) {
@@ -72,65 +127,99 @@ export default function VerifyOtpPage() {
     }
   }, [router, timer]);
 
-  const getProfileLink = (user: User): string => {
-    switch (user.role) {
-      case "PLAYER":
-        if (user.playerProfile?.id) {
-          return `/profile/player/${user.playerProfile.id}`;
-        }
-        return "/profile";
-
-      case "CLUB":
-        if (user.clubProfile?.id) {
-          return `/club/${user.clubProfile.id}`;
-        }
-        return "/club/profile";
-
-      case "ADMIN":
-        return "/admin/dashboard";
-
-      case "SCOUT":
-        if (user.scoutProfile?.id) {
-          return `/scout/${user.scoutProfile.id}`;
-        }
-        return "/scout/profile";
-
-      case "AGENT":
-        if (user.agentProfile?.id) {
-          return `/agent/${user.agentProfile.id}`;
-        }
-        return "/agent/profile";
-
-      default:
-        return "/";
-    }
-  };
-  
+  // Handle paste event
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const data = e.clipboardData.getData("text");
-    const pasteData = data.replace(/\D/g, "").slice(0, 6).split("");
+    const pastedData = e.clipboardData.getData("text");
+    const pastedNumbers = pastedData.replace(/\D/g, "").slice(0, 6).split("");
 
-    if (pasteData.length > 0) {
+    if (pastedNumbers.length > 0) {
       const newOtp = [...otpValues];
-      pasteData.forEach((char, idx) => {
+      pastedNumbers.forEach((char, idx) => {
         if (idx < 6) newOtp[idx] = char;
       });
       setOtpValues(newOtp);
       const otpString = newOtp.join("");
       setValue("otp", otpString, { shouldValidate: true });
-      const lastIndex = Math.min(pasteData.length - 1, 5);
+
+      // Focus on the last filled input
+      const lastIndex = Math.min(pastedNumbers.length - 1, 5);
       inputRefs.current[lastIndex]?.focus();
     }
   };
 
+  const checkProfileExists = async (role: string): Promise<boolean> => {
+    try {
+      switch (role) {
+        case "PLAYER":
+          const playerResult = await fetchGraphQL<{
+            myPlayerProfile: { id: string } | null;
+          }>(GET_PLAYER_PROFILE_EXISTS);
+          return !!playerResult.data?.myPlayerProfile?.id;
+
+        case "CLUB":
+          const clubResult = await fetchGraphQL<{
+            myClubProfile: { id: string } | null;
+          }>(GET_CLUB_PROFILE_EXISTS);
+          return !!clubResult.data?.myClubProfile?.id;
+
+        case "SCOUT":
+          const scoutResult = await fetchGraphQL<{
+            myScoutProfile: { id: string } | null;
+          }>(GET_SCOUT_PROFILE_EXISTS);
+          return !!scoutResult.data?.myScoutProfile?.id;
+
+        case "AGENT":
+          const agentResult = await fetchGraphQL<{
+            myAgentProfile: { id: string } | null;
+          }>(GET_AGENT_PROFILE_EXISTS);
+          return !!agentResult.data?.myAgentProfile?.id;
+
+        case "USER":
+          const userResult = await fetchGraphQL<{
+            myUserProfile: { id: string } | null;
+          }>(GET_USER_PROFILE_EXISTS);
+          return !!userResult.data?.myUserProfile?.id;
+
+        default:
+          return false;
+      }
+    } catch (error) {
+      console.error("Error checking profile:", error);
+      return false;
+    }
+  };
+
+  const getRedirectPath = (role: string, hasProfile: boolean): string => {
+    switch (role) {
+      case "PLAYER":
+        return hasProfile ? "/" : "/profile";
+      case "CLUB":
+        return hasProfile ? "/" : "/clubprofile/profile";
+      case "SCOUT":
+        return hasProfile ? "/" : "/scout/profile";
+      case "AGENT":
+        return hasProfile ? "/" : "/agent/profile";
+      case "USER":
+        return hasProfile ? "/" : "/user/profile";
+      case "ADMIN":
+        return "/admin/dashboard";
+      default:
+        return "/";
+    }
+  };
+
   const handleChange = (value: string, index: number) => {
-    if (isNaN(Number(value))) return;
+    if (isNaN(Number(value)) && value !== "") return;
+
     const newOtp = [...otpValues];
     newOtp[index] = value.substring(value.length - 1);
     setOtpValues(newOtp);
+
     const otpString = newOtp.join("");
     setValue("otp", otpString, { shouldValidate: true });
+
+    // Move to next input if value is entered
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -140,14 +229,17 @@ export default function VerifyOtpPage() {
     e: React.KeyboardEvent<HTMLInputElement>,
     index: number,
   ) => {
+    // Handle backspace
     if (e.key === "Backspace") {
       if (otpValues[index]) {
+        // Clear current input
         const newOtp = [...otpValues];
         newOtp[index] = "";
         setOtpValues(newOtp);
         const otpString = newOtp.join("");
         setValue("otp", otpString, { shouldValidate: true });
       } else if (index > 0) {
+        // Move to previous input and clear it
         const newOtp = [...otpValues];
         newOtp[index - 1] = "";
         setOtpValues(newOtp);
@@ -155,16 +247,18 @@ export default function VerifyOtpPage() {
         setValue("otp", otpString, { shouldValidate: true });
         inputRefs.current[index - 1]?.focus();
       }
-    } else if (e.key === "ArrowRight") {
-      if (index < 5) {
-        e.preventDefault();
-        inputRefs.current[index + 1]?.focus();
-      }
-    } else if (e.key === "ArrowLeft") {
-      if (index > 0) {
-        e.preventDefault();
-        inputRefs.current[index - 1]?.focus();
-      }
+    }
+
+    // Handle right arrow key
+    if (e.key === "ArrowRight" && index < 5) {
+      e.preventDefault();
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Handle left arrow key
+    if (e.key === "ArrowLeft" && index > 0) {
+      e.preventDefault();
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
@@ -180,19 +274,36 @@ export default function VerifyOtpPage() {
     try {
       const result = await fetchGraphQL<{
         verifyOtp: { token: string; user: User };
-      }>(VERIFY_OTP_MUTATION, { input: { email, otp: otpString } });
+      }>(VERIFY_OTP_MUTATION, {
+        input: {
+          email,
+          otp: otpString,
+          rememberMe: rememberMe,
+        },
+      });
 
       if (result.data?.verifyOtp) {
         const { token, user } = result.data.verifyOtp;
+
         localStorage.setItem("token", token);
+        try {
+          const expires = new Date();
+          expires.setDate(expires.getDate() + 7);
+          document.cookie = `token=${token}; Path=/; Expires=${expires.toUTCString()}; SameSite=Lax`;
+        } catch {}
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.removeItem("pending_email");
+        localStorage.removeItem("remember_me");
 
-        toast.success(
-          t(`Welcome ${user.role}! Account verified successfully.`),
-        );
+        toast.success(t("Email verified successfully!"));
 
-        const redirectPath = getProfileLink(user);
+        const hasProfile = await checkProfileExists(user.role);
+        const redirectPath = getRedirectPath(user.role, hasProfile);
+
+        console.log("Redirecting to:", redirectPath);
+        console.log("User role:", user.role);
+        console.log("Has profile:", hasProfile);
+
         router.push(redirectPath);
       } else if (result.errors) {
         toast.error(result.errors[0].message);

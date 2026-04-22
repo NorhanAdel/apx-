@@ -16,6 +16,7 @@ import {
   X,
   Handshake,
   Award,
+  Heart,
 } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
@@ -133,6 +134,11 @@ export default function AgentProfile() {
       label: t("Participation Prime"),
       icon: <Award size={18} />,
       path: "/agent/participationprime",
+    },
+    {
+      label: t("Favorite Players"),
+      icon: <Heart size={18} className="text-red-500" />,
+      path: "/agent/favouritePlayers",
     },
     {
       label: t("Logout"),

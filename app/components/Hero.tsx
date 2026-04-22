@@ -6,8 +6,9 @@ import { Tv } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "../context/ThemeContext";
 import useTranslate from "../hooks/useTranslate";
+import { fetchGraphQL } from "../lib/fetchGraphQL";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://72.62.28.146";
+const BASE_API = process.env.NEXT_PUBLIC_API_URL;
 
 interface Video {
   id: string;
@@ -44,22 +45,15 @@ export default function Hero({ lang }: { lang: string }) {
         }
       `;
 
-      const res = await fetch(`${API_URL}/graphql`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept-Language": lang,
-        },
-        body: JSON.stringify({ query }),
-      });
+      const resp = await fetchGraphQL<{ allHeroVideos: Video[] }>(query);
+      const json = resp.data || ({ allHeroVideos: [] } as any);
 
-      const json = await res.json();
-
-      const formatted: Video[] = json.data.allHeroVideos.map((v: any) => ({
+      const formatted: Video[] = (json.allHeroVideos || []).map((v: any) => ({
         ...v,
-        video_url: v.video_url.startsWith("http")
-          ? v.video_url
-          : `${API_URL}${v.video_url}`,
+        video_url:
+          v.video_url && v.video_url.startsWith("http")
+            ? v.video_url
+            : `${BASE_API}${v.video_url}`,
       }));
 
       setVideos(formatted);
@@ -78,7 +72,11 @@ export default function Hero({ lang }: { lang: string }) {
     >
       <div
         className={`relative w-full max-w-7xl rounded-3xl overflow-hidden shadow-2xl border
-        ${theme === "dark" ? "bg-[#0b0b0b] border-white/10" : "bg-white border-black/10"}`}
+        ${
+          theme === "dark"
+            ? "bg-[#0b0b0b] border-white/10"
+            : "bg-white border-black/10"
+        }`}
       >
         {/* glow */}
         <div className="absolute inset-0 opacity-30">
@@ -87,7 +85,6 @@ export default function Hero({ lang }: { lang: string }) {
         </div>
 
         <div className="relative grid md:grid-cols-2 items-center px-6 md:px-12 py-6 md:py-5 gap-8 md:gap-10">
-          
           {/* TEXT */}
           <div className="space-y-4 text-center md:text-left">
             <motion.h1
@@ -98,7 +95,6 @@ export default function Hero({ lang }: { lang: string }) {
               ${theme === "dark" ? "text-white" : "text-black"}`}
             >
               Super7
-             
             </motion.h1>
 
             <p
@@ -135,7 +131,12 @@ export default function Hero({ lang }: { lang: string }) {
               transition={{ duration: 4, repeat: Infinity }}
               className="relative w-64 sm:w-80 md:w-[420px] h-64 sm:h-80 md:h-[420px]"
             >
-              <Image src="/h.png" alt="player" fill className="object-contain" />
+              <Image
+                src="/h.png"
+                alt="player"
+                fill
+                className="object-contain"
+              />
             </motion.div>
           </div>
         </div>

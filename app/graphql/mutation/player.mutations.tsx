@@ -53,7 +53,6 @@ export const CREATE_FOOTBALL_INFO = `
       playing_style
       strengths
       market_value
-      description
     }
   }
 `;
@@ -71,7 +70,6 @@ export const UPDATE_FOOTBALL_INFO = `
       playing_style
       strengths
       market_value
-      description
     }
   }
 `;

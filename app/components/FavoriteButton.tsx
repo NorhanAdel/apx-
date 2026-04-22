@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { fetchGraphQL } from "../lib/fetchGraphQL";
@@ -28,30 +28,73 @@ export default function FavoriteButton({
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const playerIdRef = useRef(playerId);
+
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
+
+  // Get current user ID from localStorage
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setCurrentUserId(user.id);
+      } catch (e) {
+        console.error("Error parsing user:", e);
+      }
+    }
+  }, []);
 
   const fetchFavoriteStatus = useCallback(async () => {
+    if (!currentUserId) return;
+
+    const currentPlayerId = playerIdRef.current;
+    const statusKey = `favorite_status_${currentUserId}_${currentPlayerId}`;
+    const countKey = `favorite_count_${currentPlayerId}`; // Count doesn't need userId
+
+    // First check localStorage for quick display
+    const localStatus = localStorage.getItem(statusKey);
+    const localCount = localStorage.getItem(countKey);
+
+    if (localStatus !== null) {
+      setIsFavorite(localStatus === "true");
+    }
+    if (localCount !== null) {
+      setFavoriteCount(parseInt(localCount, 10));
+    }
+
     try {
       const [statusResult, countResult] = await Promise.all([
-        fetchGraphQL<{ isFavorite: boolean }>(IS_FAVORITE, { playerId }),
+        fetchGraphQL<{ isFavorite: boolean }>(IS_FAVORITE, {
+          playerId: currentPlayerId,
+        }),
         fetchGraphQL<{ favoriteCount: number }>(GET_FAVORITE_COUNT, {
-          playerId,
+          playerId: currentPlayerId,
         }),
       ]);
 
       if (statusResult.data?.isFavorite !== undefined) {
         setIsFavorite(statusResult.data.isFavorite);
+        localStorage.setItem(statusKey, String(statusResult.data.isFavorite));
       }
       if (countResult.data?.favoriteCount !== undefined) {
         setFavoriteCount(countResult.data.favoriteCount);
+        localStorage.setItem(countKey, String(countResult.data.favoriteCount));
       }
     } catch (error) {
       console.error("Error fetching favorite status:", error);
     }
-  }, [playerId]);
+  }, [currentUserId]);
 
   useEffect(() => {
-    fetchFavoriteStatus();
-  }, [fetchFavoriteStatus, playerId]);
+    if (currentUserId) {
+      fetchFavoriteStatus();
+    }
+  }, [fetchFavoriteStatus, currentUserId]);
 
   const handleToggleFavorite = async () => {
     if (loading) return;
@@ -63,15 +106,27 @@ export default function FavoriteButton({
       return;
     }
 
+    if (!currentUserId) {
+      toast.error(t("User not found"));
+      return;
+    }
+
     setLoading(true);
-    // Store previous state for rollback in case of error
     const previousStatus = isFavorite;
     const previousCount = favoriteCount;
+    const newStatus = !isFavorite;
+    const statusKey = `favorite_status_${currentUserId}_${playerId}`;
+    const countKey = `favorite_count_${playerId}`;
 
     // Optimistic update
-    const newStatus = !isFavorite;
     setIsFavorite(newStatus);
-    setFavoriteCount((prev) => (newStatus ? prev + 1 : prev - 1));
+    localStorage.setItem(statusKey, String(newStatus));
+
+    const newCount = newStatus
+      ? previousCount + 1
+      : Math.max(0, previousCount - 1);
+    setFavoriteCount(newCount);
+    localStorage.setItem(countKey, String(newCount));
 
     try {
       const result = await fetchGraphQL<{ toggleFavorite: boolean }>(
@@ -85,30 +140,51 @@ export default function FavoriteButton({
         // Rollback on error
         setIsFavorite(previousStatus);
         setFavoriteCount(previousCount);
+        localStorage.setItem(statusKey, String(previousStatus));
+        localStorage.setItem(countKey, String(previousCount));
         toast.error(result.errors[0].message);
       } else if (result.data?.toggleFavorite !== undefined) {
         const finalStatus = result.data.toggleFavorite;
-        setIsFavorite(finalStatus);
 
-        // Ensure count is correct based on server response
-        if (finalStatus !== newStatus) {
-          setFavoriteCount((prev) => (finalStatus ? prev + 1 : prev - 1));
+        setIsFavorite(finalStatus);
+        localStorage.setItem(statusKey, String(finalStatus));
+
+        // Fetch fresh count from server to ensure accuracy
+        try {
+          const countResult = await fetchGraphQL<{ favoriteCount: number }>(
+            GET_FAVORITE_COUNT,
+            { playerId },
+          );
+          if (countResult.data?.favoriteCount !== undefined) {
+            setFavoriteCount(countResult.data.favoriteCount);
+            localStorage.setItem(
+              countKey,
+              String(countResult.data.favoriteCount),
+            );
+          }
+        } catch (err) {
+          console.error("Error fetching updated count:", err);
+          const updatedCount = finalStatus
+            ? previousCount + 1
+            : Math.max(0, previousCount - 1);
+          setFavoriteCount(updatedCount);
+          localStorage.setItem(countKey, String(updatedCount));
         }
 
         toast.success(
           finalStatus ? t("Added to favorites") : t("Removed from favorites"),
         );
 
-        // Notify parent without triggering full page refresh
         if (onFavoriteChange) {
           onFavoriteChange(finalStatus);
         }
       }
     } catch (error) {
       console.error("Error toggling favorite:", error);
-      // Rollback on error
       setIsFavorite(previousStatus);
       setFavoriteCount(previousCount);
+      localStorage.setItem(statusKey, String(previousStatus));
+      localStorage.setItem(countKey, String(previousCount));
       toast.error(t("Failed to update favorite"));
     } finally {
       setLoading(false);
@@ -133,8 +209,11 @@ export default function FavoriteButton({
       <Heart
         size={20}
         className={`transition-all duration-200 ${
-          isFavorite ? "fill-red-500 text-red-500" : "fill-none"
+          isFavorite ? "fill-red-500 text-red-500" : "text-current"
         }`}
+        style={{
+          fill: isFavorite ? "currentColor" : "none",
+        }}
       />
       <span className="text-sm font-medium">
         {isFavorite ? t("Favorited") : t("Add to Favorites")}

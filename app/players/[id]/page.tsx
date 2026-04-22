@@ -2,21 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-
 import PlayerHeader from "@/app/components/PlayerHeader";
-import PlayerDescription from "@/app/components/PlayerDescription";
 import PersonalInfo from "@/app/components/PersonalInfo";
 import PlayerGallery from "@/app/components/PlayerGallery";
 import Ratings from "@/app/components/Ratings";
 import Reviews from "@/app/components/Reviews";
 import WriteReview from "@/app/components/WriteReview";
 import ReelsPlayer from "@/app/components/ReelsPlayer";
-import { fetchGraphQL } from "@/app/lib/fetchGraphQL";
-import { GET_PLAYER_PROFILE } from "@/app/graphql/query/player.query";
-import useTranslate from "@/app/hooks/useTranslate";
-import { useTheme } from "@/app/context/ThemeContext";
 import FootballInfo from "@/app/components/FootballInfo";
 import ClubCareer from "@/app/components/ClubCareer";
+import FavoriteButton from "@/app/components/FavoriteButton";
+import { fetchGraphQL } from "@/app/lib/fetchGraphQL";
+import { GET_PLAYER_PROFILE } from "@/app/graphql/query/player.queries";
+import useTranslate from "@/app/hooks/useTranslate";
+import { useTheme } from "@/app/context/ThemeContext";
 
 interface PlayerPhoto {
   id: string;
@@ -43,8 +42,13 @@ interface RatingRater {
 
 interface PlayerRating {
   id: string;
-  scalability?: number;
-  technical_skill?: number;
+  scalability?: boolean;
+  mental_stability?: boolean;
+  soccer_intelligence?: boolean;
+  physical_fitness?: boolean;
+  technical_skill?: boolean;
+  tactical_vision?: boolean;
+  republican_influence?: boolean;
   calculated_stars: number;
   notes?: string;
   created_at: string;
@@ -53,8 +57,10 @@ interface PlayerRating {
 
 interface PlayerProfile {
   id: string;
+  user_id?: string;
   first_name: string;
   last_name: string;
+  bio?: string | null;
   email_address: string;
   phone?: string;
   nationality?: string;
@@ -68,6 +74,8 @@ interface PlayerProfile {
   is_verified: boolean;
   trust_level?: string;
   views_count: number;
+  age?: number;
+  average_rating?: number;
   created_at: string;
   updated_at: string;
   photos: PlayerPhoto[];
@@ -77,6 +85,7 @@ interface PlayerProfile {
 
 interface CurrentUser {
   id: string;
+  email?: string;
   role?: string;
   playerProfile?: { id: string };
 }
@@ -90,18 +99,17 @@ export default function PlayerProfilePage() {
   const [player, setPlayer] = useState<PlayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [showContact, setShowContact] = useState(false);
+  const [refreshRatings, setRefreshRatings] = useState(0);
 
   const fetchPlayer = useCallback(async () => {
     if (!id) return;
-
     try {
       setLoading(true);
-
       const playerResult = await fetchGraphQL<{ playerProfile: PlayerProfile }>(
         GET_PLAYER_PROFILE,
         { id: String(id) },
       );
-
       if (playerResult.errors || !playerResult.data?.playerProfile) {
         setPlayer(null);
       } else {
@@ -115,29 +123,43 @@ export default function PlayerProfilePage() {
     }
   }, [id]);
 
-  const getCurrentUser = () => {
+  const getCurrentUser = useCallback(() => {
     try {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setCurrentUser(user);
+        setCurrentUser(JSON.parse(storedUser));
       }
     } catch (err) {
       console.error("Error getting current user:", err);
     }
-  };
+  }, []);
 
-  const canViewContactInfo = () => {
+  const canViewContactInfo = useCallback(() => {
     if (!currentUser || !player) return false;
     const isAdmin = currentUser.role === "ADMIN";
-    const isOwner = currentUser.playerProfile?.id === player.id;
+    const isOwner = currentUser.email === player.email_address;
     return isAdmin || isOwner;
-  };
+  }, [currentUser, player]);
 
   useEffect(() => {
     getCurrentUser();
     fetchPlayer();
-  }, [fetchPlayer, lang]);
+  }, [fetchPlayer, lang, getCurrentUser]);
+
+  useEffect(() => {
+    setShowContact(canViewContactInfo());
+  }, [canViewContactInfo]);
+
+  const handleRatingSubmitted = () => {
+    setRefreshRatings((prev) => prev + 1);
+    fetchPlayer();
+  };
+
+  const handleFavoriteChange = (newStatus: boolean) => {
+    // تحديث محلي دون عمل ريفريش للصفحة
+    console.log(`Favorite status changed to: ${newStatus}`);
+    // يمكنك إضافة أي تحديثات محلية أخرى هنا إذا لزم الأمر
+  };
 
   if (loading) {
     return (
@@ -163,11 +185,11 @@ export default function PlayerProfilePage() {
     );
   }
 
-  const showContact = canViewContactInfo();
   const displayPlayer = {
     first_name: player.first_name,
     last_name: player.last_name,
     date_of_birth: player.date_of_birth,
+    age: player.age,
     city: player.city,
     country: player.country,
     nationality: player.nationality,
@@ -175,6 +197,9 @@ export default function PlayerProfilePage() {
     weight_kg: player.weight_kg,
     email_address: showContact ? player.email_address : null,
     phone: showContact ? player.phone : null,
+    bio: player.bio,
+    trust_level: player.trust_level,
+    views_count: player.views_count,
   };
 
   return (
@@ -184,24 +209,44 @@ export default function PlayerProfilePage() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 space-y-16">
+        {/* Header and Gallery Row */}
         <div className="grid md:grid-cols-2 gap-10">
           <div className="space-y-6">
-            <PlayerHeader player={player} />
-            <PlayerDescription player={player} />
-            <PersonalInfo player={displayPlayer} />
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <PlayerHeader player={player} />
+              </div>
+              {/* Favorite Button - بدون ريفريش للصفحة */}
+              <FavoriteButton
+                playerId={player.id}
+                onFavoriteChange={handleFavoriteChange}
+              />
+            </div>
+            <PersonalInfo player={displayPlayer} showContact={showContact} />
           </div>
           <PlayerGallery player={player} />
         </div>
 
+        {/* Football Info and Club Career Row */}
         <div className="grid md:grid-cols-2 gap-6">
           <FootballInfo playerId={player.id} />
           <ClubCareer playerId={player.id} />
         </div>
 
-        <ReelsPlayer videos={player.videos || []} />
-        <Ratings ratings={player.ratings || []} />
-        <Reviews />
-        <WriteReview playerId={player.id} />
+        {/* Reels */}
+        <ReelsPlayer videos={player.videos || []} playerId={player.id} />
+
+        {/* Ratings and Reviews */}
+        <Ratings
+          key={refreshRatings}
+          ratings={player.ratings || []}
+          playerId={player.id}
+        />
+        <Reviews playerId={player.id} />
+        <WriteReview
+          playerId={player.id}
+          onRatingSubmitted={handleRatingSubmitted}
+        />
       </div>
     </div>
   );

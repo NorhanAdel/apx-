@@ -65,7 +65,12 @@ export const uploadGraphQL = async <T = unknown>(
   files.forEach((f) => console.log("  - path:", f.path, "file:", f.file.name));
 
   const operations = {
-    query,
+    // If query is a DocumentNode (gql``), extract original string if available
+    query:
+      typeof query === "string"
+        ? query
+        : (query as any)?.loc?.source?.body ??
+          (typeof query === "object" ? JSON.stringify(query) : String(query)),
     variables: variablesCopy,
   };
 

@@ -18,6 +18,7 @@ import {
   X,
   FileText,
   ArrowRightLeft,
+  Heart,
 } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
@@ -186,6 +187,11 @@ export default function ClubProfile() {
       label: t("Participation Prime"),
       icon: <Trophy size={18} />,
       path: "/profile/participationprime",
+    },
+    {
+      label: t("Favorite Players"),
+      icon: <Heart size={18} className="text-red-500" />,
+      path: "/profile/favouritePlayers",
     },
     {
       label: t("Logout"),
