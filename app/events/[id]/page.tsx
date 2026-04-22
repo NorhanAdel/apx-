@@ -33,7 +33,7 @@ export default function EventDetails() {
     if (!eventId) return;
 
     fetchEvent();
-  }, [eventId, lang]); // 🔥 إعادة الترجمة عند تغيير اللغة
+  }, [eventId, lang]);  
 
   const fetchEvent = async () => {
     setLoading(true);
@@ -57,7 +57,7 @@ export default function EventDetails() {
       const result = await fetchGraphQL<{ event: Event }>(
         query,
         { id: eventId },
-        lang // 🔥 أهم نقطة (الترجمة من الباك)
+        lang  
       );
 
       const e = result.data?.event;
